@@ -4,44 +4,124 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Student Homework Assistant</title>
-    <link rel="stylesheet" href="/static/styles.css">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js" defer></script>
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="/static/script.js" defer></script>
 </head>
 <body>
-    <div class="app">
-        <header class="app-header">
-            <div class="brand">Student Homework Assistant</div>
-            <div class="status" id="status">Ready</div>
-        </header>
-
-        <main class="chat-container">
-            <div id="messages" class="messages" aria-live="polite"></div>
-
-            <form id="chat-form" class="chat-input" autocomplete="off">
-                <select id="command" class="command-select" title="Command">
-                    <option value="">Chat</option>
-                    <option value="search">Search</option>
-                    <option value="url_context">URL Context</option>
-                </select>
-                <div class="input-area">
-                    <div id="image-previews" class="image-previews" aria-live="polite"></div>
-                    <textarea id="user-input" placeholder="Ask a question..." rows="1"></textarea>
+    <div id="app-wrapper">
+        <!-- Home Page - Shown initially -->
+        <div id="home-page">
+            <div class="home-content">
+                <div class="logo"><i class="fa-solid fa-brain"></i></div>
+                <h1>Flexx: Your Homework Assistant</h1>
+                <p>Stuck on a problem? Need help with a subject? Just ask! You can type, upload, or snap a photo of your question.</p>
+                <div class="start-prompt">
+                    <p>Let's get started. What can I help you with today?</p>
                 </div>
-                <div class="actions">
-                    <input id="image-input" type="file" accept="image/*" hidden>
-                    <button id="add-image-btn" type="button" class="icon-btn" title="Add image" aria-label="Add image">📷</button>
-                    <button id="clear-images-btn" type="button" class="icon-btn" title="Clear images" aria-label="Clear images">✖️</button>
-                    <button id="send-btn" type="submit" class="send-btn">Send</button>
+            </div>
+        </div>
+
+        <!-- Chat Interface - Hidden initially -->
+        <div id="chat-container" class="hidden">
+            <div id="chat-messages">
+                <!-- Chat messages will be dynamically inserted here -->
+            </div>
+        </div>
+
+        <!-- Input Area - Always Visible -->
+        <div id="input-area">
+            <div id="image-preview-container"></div>
+            <div class="input-bar">
+                <!-- Mobile Menu Button -->
+                <button id="mobile-menu-btn" class="icon-btn mobile-only"><i class="fa-solid fa-paperclip"></i></button>
+
+                <!-- Desktop Icons -->
+                <div class="desktop-icons">
+                    <button id="upload-btn" class="icon-btn" title="Upload Image"><i class="fa-solid fa-upload"></i></button>
+                    <input type="file" id="image-upload" accept="image/*" style="display: none;">
+                    <button id="camera-btn" class="icon-btn" title="Capture Photo"><i class="fa-solid fa-camera"></i></button>
+                    <button id="search-toggle-btn" class="icon-btn" title="Toggle Web Search"><i class="fa-solid fa-globe"></i></button>
+                    <button id="settings-btn" class="icon-btn" title="Settings"><i class="fa-solid fa-cog"></i></button>
                 </div>
-            </form>
-        </main>
+                
+                <textarea id="message-input" placeholder="Type your message, or upload a photo..." rows="1"></textarea>
+                <button id="send-btn" title="Send"><i class="fa-solid fa-arrow-up"></i></button>
+            </div>
+        </div>
     </div>
 
-    <script src="/static/app.js"></script>
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Preferences</h2>
+                <button class="close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="setting">
+                    <label for="response-language">Response Language</label>
+                    <div class="custom-select">
+                        <select id="response-language">
+                            <option value="English">English</option>
+                            <option value="Urdu">Urdu</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="setting">
+                    <label for="subject">Subject</label>
+                    <div class="custom-select">
+                        <select id="subject">
+                            <option value="General">General</option>
+                            <option value="English">English</option>
+                            <option value="Urdu">Urdu</option>
+                            <option value="Science">Science</option>
+                            <option value="Maths">Maths</option>
+                            <option value="Geography">Geography</option>
+                            <option value="History">History</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="setting">
+                    <label for="words-limit">Words Limit: <span id="words-limit-value">100</span></label>
+                    <input type="range" id="words-limit" min="50" max="500" value="100" class="slider">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="save-settings-btn" class="modal-button">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Camera Modal -->
+    <div id="camera-modal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header"><h2>Capture Photo</h2><button class="close-btn">&times;</button></div>
+            <div class="modal-body"><video id="camera-stream" autoplay playsinline></video><canvas id="camera-canvas" style="display:none;"></canvas></div>
+            <div class="modal-footer"><button id="capture-btn" class="modal-button"><i class="fa-solid fa-camera-retro"></i> Capture</button></div>
+        </div>
+    </div>
+    
+    <!-- Cropper Modal -->
+    <div id="cropper-modal" class="modal-overlay">
+        <div class="modal-content wide">
+            <div class="modal-header"><h2>Crop Image</h2><button class="close-btn">&times;</button></div>
+            <div class="modal-body"><div class="cropper-container"><img id="image-to-crop" src="" alt="Image for cropping"></div></div>
+            <div class="modal-footer"><button id="crop-confirm-btn" class="modal-button"><i class="fa-solid fa-crop-simple"></i> Confirm Crop</button></div>
+        </div>
+    </div>
+    
+    <!-- Lightbox Modal -->
+    <div id="lightbox-modal" class="modal-overlay lightbox">
+        <span class="close-btn">&times;</span><img class="lightbox-content" id="lightbox-img">
+    </div>
+
 </body>
-<!-- More content could be added here (settings, history) -->
 </html>
-
-

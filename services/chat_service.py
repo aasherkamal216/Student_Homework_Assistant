@@ -2,7 +2,7 @@ import os
 from typing import List, Dict, Any, Optional, AsyncGenerator
 from litellm import acompletion
 
-from models.chat import ChatRequest, ChatResponse, StreamResponse
+from models.chat import ChatRequest, StreamResponse
 from prompts import SYSTEM_PROMPT
 
 class ChatService:
@@ -13,125 +13,60 @@ class ChatService:
         if not self.api_key:
             raise ValueError("GOOGLE_API_KEY environment variable is required")
 
-    async def process_chat(self, request: ChatRequest) -> ChatResponse:
-        """Process a complete chat request and return the response"""
-        try:
-            # Prepare messages with system prompt
-            messages = self._prepare_messages(request)
-            
-            # Prepare tools based on command
-            tools = self._prepare_tools(request.command)
-            
-            # Make the API call
-            response = await acompletion(
-                model=self.model,
-                messages=messages,
-                temperature=request.settings.temperature,
-                top_p=request.settings.top_p,
-                reasoning_effort=request.settings.reasoning_effort,
-                api_key=self.api_key,
-                tools=tools,
-                stream=False
-            )
-            
-            content = response.choices[0].message.content or ""
-            reasoning_content = getattr(response.choices[0].message, "reasoning_content", None)
-            
-            return ChatResponse(
-                content=content,
-                reasoning_content=reasoning_content
-            )
-            
-        except Exception as e:
-            return ChatResponse(
-                content="",
-                error=str(e)
-            )
-
     async def stream_chat(self, request: ChatRequest) -> AsyncGenerator[StreamResponse, None]:
         """Stream chat response"""
         try:
-            # Prepare messages with system prompt
+            # Pass the entire request to format the system prompt
             messages = self._prepare_messages(request)
-            
-            # Prepare tools based on command
             tools = self._prepare_tools(request.command)
             
-            # Make the streaming API call
-            response = await acompletion(
-                model=self.model,
-                messages=messages,
-                temperature=request.settings.temperature,
-                top_p=request.settings.top_p,
-                reasoning_effort=request.settings.reasoning_effort,
-                api_key=self.api_key,
-                tools=tools,
-                stream=True
-            )
+            completion_params = {
+                "model": self.model,
+                "messages": messages,
+                "temperature": 0.7,
+                "top_p": 1.0,
+                "api_key": self.api_key,
+                "stream": True
+            }
+            if tools:
+                completion_params["tools"] = tools
+
+            response = await acompletion(**completion_params)
             
             async for part in response:
-                chunk_response = StreamResponse()
-                
-                if hasattr(part.choices[0].delta, "reasoning_content"):
-                    reasoning = part.choices[0].delta.reasoning_content or ""
-                    if reasoning:
-                        chunk_response.reasoning_content = reasoning
-                
                 content = part.choices[0].delta.content or ""
                 if content:
-                    chunk_response.content = content
-                
-                if chunk_response.content or chunk_response.reasoning_content:
-                    yield chunk_response
+                    yield StreamResponse(content=content)
                     
         except Exception as e:
             yield StreamResponse(error=str(e), finished=True)
 
     def _prepare_messages(self, request: ChatRequest) -> List[Dict[str, Any]]:
-        """Prepare messages with system prompt"""
-        messages = []
+        """Prepare messages with a dynamically formatted system prompt"""
         
-        # Add system message first
-        messages.append({
-            "role": "system", 
-            "content": SYSTEM_PROMPT
-        })
+        # Format the system prompt with settings from the request
+        formatted_system_prompt = SYSTEM_PROMPT.format(
+            language=request.prompt_settings.language,
+            subject=request.prompt_settings.subject
+        )
         
-        # Add all messages from the request
+        messages = [{"role": "system", "content": formatted_system_prompt}]
+        
         for message in request.messages:
             if message.role == "system":
-                continue  # Skip additional system messages since we already added one
-                
-            # Convert message to dict format expected by litellm
+                continue
+            
             if isinstance(message.content, str):
-                # Simple text message
-                messages.append({
-                    "role": message.role,
-                    "content": message.content
-                })
+                messages.append({"role": message.role, "content": message.content})
             else:
-                # Complex content with text and/or images
-                content_parts = []
-                for part in message.content:
-                    if hasattr(part, 'dict'):
-                        content_parts.append(part.dict())
-                    elif isinstance(part, dict):
-                        content_parts.append(part)
-                
-                messages.append({
-                    "role": message.role,
-                    "content": content_parts
-                })
+                content_parts = [part.model_dump() for part in message.content]
+                messages.append({"role": message.role, "content": content_parts})
         
         return messages
 
-    def _prepare_tools(self, command: str) -> List[Dict[str, Any]]:
+    def _prepare_tools(self, command: Optional[str]) -> Optional[List[Dict[str, Any]]]:
         """Prepare tools based on the command"""
-        tools = []
-        
         if command == "search":
-            tools = [{"googleSearch": {}}]
-        elif command == "url_context":
-            tools = [{"urlContext": {}}]
-            
-        return tools
+            # This specific format enables Gemini's native search via litellm
+            return [{"googleSearch": {}}]
+        return None # Return None when no tools are used

@@ -10,23 +10,23 @@ class ChatMessage(BaseModel):
     role: str = Field(..., description="Role of the message sender (system, user, assistant)")
     content: Union[str, List[MessageContent]] = Field(..., description="Message content - string for simple text or list for mixed content")
 
-class ChatSettings(BaseModel):
-    temperature: float = Field(1.0, ge=0.0, le=2.0)
-    top_p: float = Field(0.8, ge=0.0, le=1.0)
-    reasoning_effort: Literal["low", "medium", "high"] = "low"
+# New model to receive language and subject
+class PromptSettings(BaseModel):
+    language: str = "English"
+    subject: str = "General"
+    words_limit: int = 100
 
 class ChatRequest(BaseModel):
     messages: List[ChatMessage] = Field(..., description="List of messages in the conversation")
-    settings: Optional[ChatSettings] = Field(default_factory=ChatSettings)
-    command: Optional[Literal["search", "url_context"]] = None
+    # This field will now carry the prompt settings from the frontend
+    prompt_settings: PromptSettings = Field(default_factory=PromptSettings)
+    command: Optional[Literal["search"]] = None
 
 class ChatResponse(BaseModel):
     content: str
-    reasoning_content: Optional[str] = None
     error: Optional[str] = None
 
 class StreamResponse(BaseModel):
     content: Optional[str] = None
-    reasoning_content: Optional[str] = None
     finished: bool = False
     error: Optional[str] = None
