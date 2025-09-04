@@ -47,7 +47,8 @@ class ChatService:
         # Format the system prompt with settings from the request
         formatted_system_prompt = SYSTEM_PROMPT.format(
             language=request.prompt_settings.language,
-            subject=request.prompt_settings.subject
+            subject=request.prompt_settings.subject,
+            words_limit=request.prompt_settings.words_limit
         )
         
         messages = [{"role": "system", "content": formatted_system_prompt}]
